@@ -1,0 +1,35 @@
+{
+	"name": "pols-exceljs-plus",
+	"version": "1.0.0",
+	"main": "dist/index.js",
+	"module": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"scripts": {
+		"build": "npx tsc",
+		"test": "npx ts-node-dev -r tsconfig-paths/register --project tsconfig.json",
+		"export": "npm run build && npm publish"
+	},
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"require": "./dist/index.js"
+		}
+	},
+	"author": "Jean Paul Sánchez mendoza",
+	"license": "ISC",
+	"description": "",
+	"devDependencies": {
+		"@eslint/js": "^9.13.0",
+		"@types/node": "^22.7.9",
+		"eslint": "^9.13.0",
+		"globals": "^15.11.0",
+		"tsconfig-paths": "^4.2.0",
+		"typescript": "^5.6.3",
+		"typescript-eslint": "^8.11.0"
+	},
+	"dependencies": {
+		"exceljs": "^4.4.0",
+		"pols-date": "^1.6.0",
+		"pols-utils": "^5.9.0"
+	}
+}
