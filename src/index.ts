@@ -32,7 +32,7 @@ export type PPage = {
 	title?: string
 	columns: PColumn[][]
 	rows: PCell[][]
-	defaultNombreFormat?: string
+	defaultNumberFormat?: string
 }
 
 type PSkips = Record<string, number[]>
@@ -141,46 +141,57 @@ const cellColumnPaint = (sheet: exceljs.Worksheet, r: number, c: number, column:
 	return cFinal + 1
 }
 
-const setValueCell = (sheetCell: exceljs.Cell, cell: PCell, defaultNombreFormat?: string) => {
-	if (cell == null) {
+const setValueCell = ({ sheetCell, value, defaultNumberFormat, vertical, wrapText }: {
+	sheetCell: exceljs.Cell
+	value: PCell
+	defaultNumberFormat?: string
+	vertical?: 'top' | 'middle' | 'bottom' | 'justify' | 'distributed'
+	wrapText?: boolean
+}) => {
+
+	if (value == null) {
 		sheetCell.value = null
-	} else if (typeof cell == 'string' || typeof cell == 'number' || typeof cell == 'boolean' || cell instanceof Date) {
-		sheetCell.value = cell
-	} else if ('toString' in cell && typeof cell.toString == 'function' && 'utcTimestamp' in cell) {
-		sheetCell.value = new Date(cell.utcTimestamp)
-	} else if (cell != null && typeof cell == 'object' && 'value' in cell) {
-		if (cell.backgroundColor) {
+	} else if (typeof value == 'string' || typeof value == 'number' || typeof value == 'boolean' || value instanceof Date || 'utcTimestamp' in value) {
+		const alignment = {
+			vertical: vertical ?? 'top',
+			wrapText: wrapText ?? true
+		}
+
+		if (typeof value == 'string' || typeof value == 'number' || typeof value == 'boolean' || value instanceof Date) {
+			sheetCell.value = value
+		} else {
+			sheetCell.value = new Date(value.utcTimestamp)
+		}
+
+		sheetCell.alignment = alignment
+	} else if (value != null && typeof value == 'object' && 'value' in value) {
+		if (value.backgroundColor) {
 			sheetCell.fill = {
 				type: "pattern",
 				pattern: "solid",
 				fgColor: {
-					argb: `00${(cell.backgroundColor).replace('#', '')}`,
+					argb: `00${(value.backgroundColor).replace('#', '')}`,
 				},
 				bgColor: {
-					argb: `00${(cell.backgroundColor).replace('#', '')}`,
+					argb: `00${(value.backgroundColor).replace('#', '')}`,
 				},
 			}
 		}
-		if (cell.color) sheetCell.font.color.argb = `00${cell.color.replace('#', '')}`
+		if (value.color) sheetCell.font.color.argb = `00${value.color.replace('#', '')}`
 
-		const alignment = {
-			vertical: 'top',
-			wrapText: true
-		}
-		if (cell.vAlign) alignment.vertical = cell.vAlign
-		if (cell.wrapText != null) alignment.wrapText = cell.wrapText
-		sheetCell.alignment = alignment as any
-
-		if (typeof cell.value == 'number') {
-			const format = cell.numberFormat ?? defaultNombreFormat
-			if (format) sheetCell.numFmt = format
-		}
 		try {
-			setValueCell(sheetCell, cell.value, defaultNombreFormat)
+			setValueCell({
+				sheetCell,
+				value: value.value,
+				defaultNumberFormat: value.numberFormat ?? defaultNumberFormat,
+				vertical: value.vAlign,
+				wrapText: value.wrapText
+			})
 		} catch (error) {
-			throw new Error(`Se ha intentado asignar un valor no válido para la celda ${sheetCell.row},${sheetCell.col}: ${cell.value}. ${error.message}`)
+			throw new Error(`Se ha intentado asignar un valor no válido para la celda ${sheetCell.row},${sheetCell.col}: ${value.value}. ${error.message}`)
 		}
 	}
+
 }
 
 export const report = async (...pages: PPage[]) => {
@@ -220,7 +231,11 @@ export const report = async (...pages: PPage[]) => {
 			}
 			for (const cell of row) {
 				const sheetCell = sheet.getCell(r, c++)
-				setValueCell(sheetCell, cell, page.defaultNombreFormat)
+				setValueCell({
+					sheetCell,
+					value: cell,
+					defaultNumberFormat: page.defaultNumberFormat
+				})
 			}
 			r++
 		}
@@ -289,7 +304,10 @@ export class Xls extends exceljs.Workbook {
 			for (const [i, rows] of values.entries()) {
 				for (const [j, value] of rows.entries()) {
 					const cell = sheet.getCell(r + i, c + j)
-					setValueCell(cell, value)
+					setValueCell({
+						sheetCell: cell,
+						value
+					})
 				}
 			}
 		}
@@ -297,14 +315,20 @@ export class Xls extends exceljs.Workbook {
 		sheet.setRowValues = (r: number, c: number, values: PCell[]) => {
 			for (const [i, value] of values.entries()) {
 				const cell = sheet.getCell(r, c + i)
-				setValueCell(cell, value)
+				setValueCell({
+					sheetCell: cell,
+					value
+				})
 			}
 		}
 
 		sheet.setColumnValues = (r: number, c: number, values: PCell[]) => {
 			for (const [i, value] of values.entries()) {
 				const cell = sheet.getCell(r + i, c)
-				setValueCell(cell, value)
+				setValueCell({
+					sheetCell: cell,
+					value
+				})
 			}
 		}
 
