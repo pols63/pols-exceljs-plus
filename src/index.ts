@@ -162,12 +162,15 @@ const setValueCell = (sheetCell: exceljs.Cell, cell: PCell, defaultNombreFormat?
 			}
 		}
 		if (cell.color) sheetCell.font.color.argb = `00${cell.color.replace('#', '')}`
-		if (cell.vAlign || cell.wrapText != null) {
-			const alignment: any = {}
-			if (cell.vAlign) alignment.vertical = cell.vAlign
-			if (cell.wrapText != null) alignment.wrapText = cell.wrapText
-			sheetCell.alignment = alignment
+
+		const alignment = {
+			vertical: 'top',
+			wrapText: true
 		}
+		if (cell.vAlign) alignment.vertical = cell.vAlign
+		if (cell.wrapText != null) alignment.wrapText = cell.wrapText
+		sheetCell.alignment = alignment as any
+
 		if (typeof cell.value == 'number') {
 			const format = cell.numberFormat ?? defaultNombreFormat
 			if (format) sheetCell.numFmt = format
