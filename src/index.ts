@@ -194,7 +194,10 @@ const setValueCell = ({ sheetCell, value }: {
 			setBorder(sheetCell, 'right', toSet, value.border)
 			sheetCell.border = toSet
 		}
-		if (value.color) sheetCell.font.color.argb = PUtilsString.padStart(value.color.replace(/^#/, ''), 8)
+		if (value.color) sheetCell.font = {
+			...sheetCell.font,
+			color: { argb: PUtilsString.padStart(value.color.replace(/^#/, ''), 8) }
+		}
 		if (value.numberFormat) sheetCell.numFmt = value.numberFormat
 		if (value.vAlign) sheetCell.alignment.vertical = value.vAlign
 		if (value.hAlign) sheetCell.alignment.horizontal = value.hAlign
@@ -318,22 +321,22 @@ export class Xls extends exceljs.Workbook {
 
 		sheet.setValues = (r: number, c: number, values: PCell[][], defaultStyle?: PCellStyle) => {
 			for (const [i, rows] of values.entries()) {
-				for (const [j, value] of rows.entries()) {
-					const cell = sheet.getCell(r + i, c + j)
-					setValueCell({
-						sheetCell: cell,
-						value: typeof value == 'object' && 'value' in value ? { ...(defaultStyle ?? {}), ...value } : { value, ...(defaultStyle ?? {}) }
-					})
-				}
+				sheet.setRowValues(r + i, c, rows, defaultStyle)
 			}
 		}
 
 		sheet.setRowValues = (r: number, c: number, values: PCell[], defaultStyle?: PCellStyle) => {
+			let col = c
 			for (const [i, value] of values.entries()) {
-				const cell = sheet.getCell(r, c + i)
+				const cell = sheet.getCell(r, col + i)
+				const processedValue = typeof value == 'object' && 'value' in value ? { ...(defaultStyle ?? {}), ...value } : { value, ...(defaultStyle ?? {}) }
+				if ((processedValue.span ?? 0) > 1) {
+					sheet.mergeCells(r, col + i, r, col + processedValue.span - 1)
+					col += processedValue.span - 1
+				}
 				setValueCell({
 					sheetCell: cell,
-					value: typeof value == 'object' && 'value' in value ? { ...(defaultStyle ?? {}), ...value } : { value, ...(defaultStyle ?? {}) }
+					value: processedValue
 				})
 			}
 		}
@@ -341,9 +344,13 @@ export class Xls extends exceljs.Workbook {
 		sheet.setColumnValues = (r: number, c: number, values: PCell[], defaultStyle?: PCellStyle) => {
 			for (const [i, value] of values.entries()) {
 				const cell = sheet.getCell(r + i, c)
+				const processedValue = typeof value == 'object' && 'value' in value ? { ...(defaultStyle ?? {}), ...value } : { value, ...(defaultStyle ?? {}) }
+				if ((processedValue.span ?? 0) > 1) {
+					sheet.mergeCells(r, c, r, c + processedValue.span - 1)
+				}
 				setValueCell({
 					sheetCell: cell,
-					value: typeof value == 'object' && 'value' in value ? { ...(defaultStyle ?? {}), ...value } : { value, ...(defaultStyle ?? {}) }
+					value: processedValue
 				})
 			}
 		}
