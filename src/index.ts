@@ -153,12 +153,11 @@ const cellColumnPaint = (sheet: exceljs.Worksheet, r: number, c: number, column:
 	return cFinal + 1
 }
 
-const setBorder = (sheetCell: exceljs.Cell, _type: 'top' | 'bottom' | 'left' | 'right', reference?: PCellStyle['border']) => {
+const setBorder = (sheetCell: exceljs.Cell, _type: 'top' | 'bottom' | 'left' | 'right', toSet: Style['border'], reference?: PCellStyle['border']) => {
 	if (!reference?.[_type]) return
-	if (!sheetCell.border) sheetCell.border = {}
-	if (!sheetCell.border[_type]) sheetCell.border[_type] = {}
-	if (reference[_type].style) sheetCell.border[_type].style = reference[_type].style
-	if (reference[_type].color) sheetCell.border[_type].color = { argb: PUtilsString.padStart(reference[_type].color.replace(/^#/, ''), 8) }
+	toSet[_type] = {}
+	if (reference[_type].style) toSet[_type].style = reference[_type].style
+	if (reference[_type].color) toSet[_type].color = { argb: PUtilsString.padStart(reference[_type].color.replace(/^#/, ''), 8) }
 }
 
 const setValueCell = ({ sheetCell, value }: {
@@ -188,10 +187,12 @@ const setValueCell = ({ sheetCell, value }: {
 			}
 		}
 		if (value.border) {
-			setBorder(sheetCell, 'top', value.border)
-			setBorder(sheetCell, 'bottom', value.border)
-			setBorder(sheetCell, 'left', value.border)
-			setBorder(sheetCell, 'right', value.border)
+			const toSet: Style['border'] = {}
+			setBorder(sheetCell, 'top', toSet, value.border)
+			setBorder(sheetCell, 'bottom', toSet, value.border)
+			setBorder(sheetCell, 'left', toSet, value.border)
+			setBorder(sheetCell, 'right', toSet, value.border)
+			sheetCell.border = toSet
 		}
 		if (value.color) sheetCell.font.color.argb = PUtilsString.padStart(value.color.replace(/^#/, ''), 8)
 		if (value.numberFormat) sheetCell.numFmt = value.numberFormat
