@@ -189,7 +189,7 @@ const setValueCell = ({ sheetCell, value }: {
 			if (value.border.right?.style) sheetCell.border.right.style = value.border.right?.style
 			if (value.border.right?.color) sheetCell.border.right.color = { argb: PUtilsString.padStart(value.border.right.color.replace(/^#/, ''), 8) }
 		}
-		if (value.color) sheetCell.font.color.argb = `00${value.color.replace('#', '')}`
+		if (value.color) sheetCell.font.color.argb = PUtilsString.padStart(value.color.replace(/^#/, ''), 8)
 		if (value.numberFormat) sheetCell.numFmt = value.numberFormat
 		if (value.vAlign) sheetCell.alignment.vertical = value.vAlign
 		if (value.hAlign) sheetCell.alignment.horizontal = value.hAlign
