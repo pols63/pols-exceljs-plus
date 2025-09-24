@@ -329,7 +329,13 @@ export class Xls extends exceljs.Workbook {
 			let col = c
 			for (const [i, value] of values.entries()) {
 				const cell = sheet.getCell(r, col + i)
-				const processedValue = typeof value == 'object' && 'value' in value ? { ...(defaultStyle ?? {}), ...value } : { value, ...(defaultStyle ?? {}) }
+				const processedValue = (typeof value == 'object' && value != null && 'value' in value) ? {
+					...(defaultStyle ?? {}),
+					...value
+				} : {
+					value: value as PValue,
+					...(defaultStyle ?? {})
+				}
 				if ((processedValue.span ?? 0) > 1) {
 					sheet.mergeCells(r, col + i, r, col + processedValue.span - 1)
 					col += processedValue.span - 1
@@ -344,7 +350,13 @@ export class Xls extends exceljs.Workbook {
 		sheet.setColumnValues = (r: number, c: number, values: PCell[], defaultStyle?: PCellStyle) => {
 			for (const [i, value] of values.entries()) {
 				const cell = sheet.getCell(r + i, c)
-				const processedValue = typeof value == 'object' && 'value' in value ? { ...(defaultStyle ?? {}), ...value } : { value, ...(defaultStyle ?? {}) }
+				const processedValue = (typeof value == 'object' && value != null && 'value' in value) ? {
+					...(defaultStyle ?? {}),
+					...value
+				} : {
+					value: value as PValue,
+					...(defaultStyle ?? {})
+				}
 				if ((processedValue.span ?? 0) > 1) {
 					sheet.mergeCells(r, c, r, c + processedValue.span - 1)
 				}
