@@ -153,6 +153,13 @@ const cellColumnPaint = (sheet: exceljs.Worksheet, r: number, c: number, column:
 	return cFinal + 1
 }
 
+const setBorder = (sheetCell: exceljs.Cell, _type: 'top' | 'bottom' | 'left' | 'right', reference?: PCellStyle['border']) => {
+	if (!reference?.[_type]) return
+	if (!sheetCell.border) sheetCell.border = {}
+	if (reference[_type].style) sheetCell.border[_type].style = reference[_type].style
+	if (reference[_type].color) sheetCell.border[_type].color = { argb: PUtilsString.padStart(reference[_type].color.replace(/^#/, ''), 8) }
+}
+
 const setValueCell = ({ sheetCell, value }: {
 	sheetCell: exceljs.Cell
 	value: PCell
@@ -180,14 +187,10 @@ const setValueCell = ({ sheetCell, value }: {
 			}
 		}
 		if (value.border) {
-			if (value.border.top?.style) sheetCell.border.top.style = value.border.top?.style
-			if (value.border.top?.color) sheetCell.border.top.color = { argb: PUtilsString.padStart(value.border.top.color.replace(/^#/, ''), 8) }
-			if (value.border.bottom?.style) sheetCell.border.bottom.style = value.border.bottom?.style
-			if (value.border.bottom?.color) sheetCell.border.bottom.color = { argb: PUtilsString.padStart(value.border.bottom.color.replace(/^#/, ''), 8) }
-			if (value.border.left?.style) sheetCell.border.left.style = value.border.left?.style
-			if (value.border.left?.color) sheetCell.border.left.color = { argb: PUtilsString.padStart(value.border.left.color.replace(/^#/, ''), 8) }
-			if (value.border.right?.style) sheetCell.border.right.style = value.border.right?.style
-			if (value.border.right?.color) sheetCell.border.right.color = { argb: PUtilsString.padStart(value.border.right.color.replace(/^#/, ''), 8) }
+			setBorder(sheetCell, 'top', value.border)
+			setBorder(sheetCell, 'bottom', value.border)
+			setBorder(sheetCell, 'left', value.border)
+			setBorder(sheetCell, 'right', value.border)
 		}
 		if (value.color) sheetCell.font.color.argb = PUtilsString.padStart(value.color.replace(/^#/, ''), 8)
 		if (value.numberFormat) sheetCell.numFmt = value.numberFormat
