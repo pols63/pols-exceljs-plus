@@ -241,9 +241,9 @@ export const report = async (...pages: PPage[]) => {
 export type PSchemaResult<T, K extends readonly string[]> = [T] extends [never] ? Record<K[number], string | number | Date | null> : T
 
 export type Worksheet = exceljs.Worksheet & {
-	setValues: (r: string | number, c: string | number, values: PCell[][]) => void
-	setRowValues: (r: string | number, c: string | number, values: PCell[]) => void
-	setColumnValues: (r: string | number, c: string | number, values: PCell[]) => void
+	setValues: (r: string | number, c: string | number, values: PCell[][], defaultStyle?: Omit<PCell, 'value'>) => void
+	setRowValues: (r: string | number, c: string | number, values: PCell[], defaultStyle?: Omit<PCell, 'value'>) => void
+	setColumnValues: (r: string | number, c: string | number, values: PCell[], defaultStyle?: Omit<PCell, 'value'>) => void
 	getValuesBySchema: <T = never, K extends readonly string[] = readonly string[]>(r: number, c: number, readMode: 'row' | 'column', schema: K) => PSchemaResult<T, K>
 	getValue: <T = string | number | Date | null>(r: number, c: number) => T
 }
@@ -292,34 +292,34 @@ export class Xls extends exceljs.Workbook {
 		}
 		if (!sheet) throw new Error(`No se encontró el worksheet '${indexOrName}'`)
 
-		sheet.setValues = (r: number, c: number, values: PCell[][]) => {
+		sheet.setValues = (r: number, c: number, values: PCell[][], defaultStyle?: Omit<PCell, 'value'>) => {
 			for (const [i, rows] of values.entries()) {
 				for (const [j, value] of rows.entries()) {
 					const cell = sheet.getCell(r + i, c + j)
 					setValueCell({
 						sheetCell: cell,
-						value
+						value: typeof value == 'object' && 'value' in value ? { ...(defaultStyle ?? {}), ...value } : { value, ...(defaultStyle ?? {}) }
 					})
 				}
 			}
 		}
 
-		sheet.setRowValues = (r: number, c: number, values: PCell[]) => {
+		sheet.setRowValues = (r: number, c: number, values: PCell[], defaultStyle?: Omit<PCell, 'value'>) => {
 			for (const [i, value] of values.entries()) {
 				const cell = sheet.getCell(r, c + i)
 				setValueCell({
 					sheetCell: cell,
-					value
+					value: typeof value == 'object' && 'value' in value ? { ...(defaultStyle ?? {}), ...value } : { value, ...(defaultStyle ?? {}) }
 				})
 			}
 		}
 
-		sheet.setColumnValues = (r: number, c: number, values: PCell[]) => {
+		sheet.setColumnValues = (r: number, c: number, values: PCell[], defaultStyle?: Omit<PCell, 'value'>) => {
 			for (const [i, value] of values.entries()) {
 				const cell = sheet.getCell(r + i, c)
 				setValueCell({
 					sheetCell: cell,
-					value
+					value: typeof value == 'object' && 'value' in value ? { ...(defaultStyle ?? {}), ...value } : { value, ...(defaultStyle ?? {}) }
 				})
 			}
 		}
