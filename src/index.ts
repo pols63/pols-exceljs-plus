@@ -1,6 +1,6 @@
 import path from 'node:path'
 import stream from 'node:stream'
-import exceljs from 'exceljs'
+import exceljs, { Style } from 'exceljs'
 import { PUtilsString } from 'pols-utils'
 import { PDate } from 'pols-date'
 
@@ -23,7 +23,8 @@ export type PCell = PValue | {
 	backgroundColor?: string
 	span?: number
 	numberFormat?: string
-	vAlign?: 'top' | 'middle' | 'bottom' | 'justify' | 'distributed'
+	vAlign?: Style['alignment']['vertical']
+	hAlign?: Style['alignment']['horizontal']
 	wrapText?: boolean
 }
 
@@ -141,29 +142,19 @@ const cellColumnPaint = (sheet: exceljs.Worksheet, r: number, c: number, column:
 	return cFinal + 1
 }
 
-const setValueCell = ({ sheetCell, value, defaultNumberFormat, vertical, wrapText }: {
+const setValueCell = ({ sheetCell, value }: {
 	sheetCell: exceljs.Cell
 	value: PCell
-	defaultNumberFormat?: string
-	vertical?: 'top' | 'middle' | 'bottom' | 'justify' | 'distributed'
-	wrapText?: boolean
 }) => {
 
 	if (value == null) {
 		sheetCell.value = null
 	} else if (typeof value == 'string' || typeof value == 'number' || typeof value == 'boolean' || value instanceof Date || 'utcTimestamp' in value) {
-		const alignment = {
-			vertical: vertical ?? 'top',
-			wrapText: wrapText ?? true
-		}
-
 		if (typeof value == 'string' || typeof value == 'number' || typeof value == 'boolean' || value instanceof Date) {
 			sheetCell.value = value
 		} else {
 			sheetCell.value = new Date(value.utcTimestamp)
 		}
-
-		sheetCell.alignment = alignment
 	} else if (value != null && typeof value == 'object' && 'value' in value) {
 		if (value.backgroundColor) {
 			sheetCell.fill = {
@@ -178,20 +169,20 @@ const setValueCell = ({ sheetCell, value, defaultNumberFormat, vertical, wrapTex
 			}
 		}
 		if (value.color) sheetCell.font.color.argb = `00${value.color.replace('#', '')}`
+		if (value.numberFormat) sheetCell.numFmt = value.numberFormat
+		if (value.vAlign) sheetCell.alignment.vertical = value.vAlign
+		if (value.hAlign) sheetCell.alignment.horizontal = value.hAlign
+		if (value.wrapText) sheetCell.alignment.wrapText = value.wrapText
 
 		try {
 			setValueCell({
 				sheetCell,
-				value: value.value,
-				defaultNumberFormat: value.numberFormat ?? defaultNumberFormat,
-				vertical: value.vAlign,
-				wrapText: value.wrapText
+				value: value.value
 			})
 		} catch (error) {
 			throw new Error(`Se ha intentado asignar un valor no válido para la celda ${sheetCell.row},${sheetCell.col}: ${value.value}. ${error.message}`)
 		}
 	}
-
 }
 
 export const report = async (...pages: PPage[]) => {
@@ -233,8 +224,7 @@ export const report = async (...pages: PPage[]) => {
 				const sheetCell = sheet.getCell(r, c++)
 				setValueCell({
 					sheetCell,
-					value: cell,
-					defaultNumberFormat: page.defaultNumberFormat
+					value: cell
 				})
 			}
 			r++
