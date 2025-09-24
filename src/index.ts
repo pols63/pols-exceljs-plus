@@ -26,7 +26,12 @@ export type PCellDefinition = {
 	vAlign?: Style['alignment']['vertical']
 	hAlign?: Style['alignment']['horizontal']
 	wrapText?: boolean
-	border?: Style['border']
+	border?: {
+		top?: { style?: Style['border']['top']['style'], color?: string }
+		bottom?: { style?: Style['border']['bottom']['style'], color?: string }
+		left?: { style?: Style['border']['left']['style'], color?: string }
+		right?: { style?: Style['border']['right']['style'], color?: string }
+	}
 }
 
 export type PCell = PValue | PCellDefinition
@@ -164,14 +169,23 @@ const setValueCell = ({ sheetCell, value }: {
 				type: "pattern",
 				pattern: "solid",
 				fgColor: {
-					argb: `00${(value.backgroundColor).replace('#', '')}`,
+					argb: PUtilsString.padStart(value.backgroundColor.replace(/^#/, ''), 8),
 				},
 				bgColor: {
-					argb: `00${(value.backgroundColor).replace('#', '')}`,
+					argb: PUtilsString.padStart(value.backgroundColor.replace(/^#/, ''), 8),
 				},
 			}
 		}
-		if (value.border) sheetCell.border = value.border
+		if (value.border) {
+			if (value.border.top?.style) sheetCell.border.top.style = value.border.top?.style
+			if (value.border.top?.color) sheetCell.border.top.color = { argb: PUtilsString.padStart(value.border.top.color.replace(/^#/, ''), 8) }
+			if (value.border.bottom?.style) sheetCell.border.bottom.style = value.border.bottom?.style
+			if (value.border.bottom?.color) sheetCell.border.bottom.color = { argb: PUtilsString.padStart(value.border.bottom.color.replace(/^#/, ''), 8) }
+			if (value.border.left?.style) sheetCell.border.left.style = value.border.left?.style
+			if (value.border.left?.color) sheetCell.border.left.color = { argb: PUtilsString.padStart(value.border.left.color.replace(/^#/, ''), 8) }
+			if (value.border.right?.style) sheetCell.border.right.style = value.border.right?.style
+			if (value.border.right?.color) sheetCell.border.right.color = { argb: PUtilsString.padStart(value.border.right.color.replace(/^#/, ''), 8) }
+		}
 		if (value.color) sheetCell.font.color.argb = `00${value.color.replace('#', '')}`
 		if (value.numberFormat) sheetCell.numFmt = value.numberFormat
 		if (value.vAlign) sheetCell.alignment.vertical = value.vAlign
