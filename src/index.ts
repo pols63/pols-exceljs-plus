@@ -26,6 +26,7 @@ export type PCell = PValue | {
 	vAlign?: Style['alignment']['vertical']
 	hAlign?: Style['alignment']['horizontal']
 	wrapText?: boolean
+	border?: Style['border']
 }
 
 export type PPage = {
@@ -168,6 +169,7 @@ const setValueCell = ({ sheetCell, value }: {
 				},
 			}
 		}
+		if (value.border) sheetCell.border = value.border
 		if (value.color) sheetCell.font.color.argb = `00${value.color.replace('#', '')}`
 		if (value.numberFormat) sheetCell.numFmt = value.numberFormat
 		if (value.vAlign) sheetCell.alignment.vertical = value.vAlign
