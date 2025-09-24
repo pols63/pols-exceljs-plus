@@ -17,8 +17,7 @@ export type PColumn = {
 
 export type PValue = string | number | boolean | null | undefined | Date | PDate
 
-export type PCellDefinition = {
-	value: PValue
+export type PCellStyle = {
 	color?: string
 	backgroundColor?: string
 	span?: number
@@ -33,6 +32,10 @@ export type PCellDefinition = {
 		right?: { style?: Style['border']['right']['style'], color?: string }
 	}
 }
+
+export type PCellDefinition = {
+	value: PValue
+} & PCellStyle
 
 export type PCell = PValue | PCellDefinition
 
@@ -308,7 +311,7 @@ export class Xls extends exceljs.Workbook {
 		}
 		if (!sheet) throw new Error(`No se encontró el worksheet '${indexOrName}'`)
 
-		sheet.setValues = (r: number, c: number, values: PCell[][], defaultStyle?: Omit<PCellDefinition, 'value'>) => {
+		sheet.setValues = (r: number, c: number, values: PCell[][], defaultStyle?: PCellStyle) => {
 			for (const [i, rows] of values.entries()) {
 				for (const [j, value] of rows.entries()) {
 					const cell = sheet.getCell(r + i, c + j)
@@ -320,7 +323,7 @@ export class Xls extends exceljs.Workbook {
 			}
 		}
 
-		sheet.setRowValues = (r: number, c: number, values: PCell[], defaultStyle?: Omit<PCellDefinition, 'value'>) => {
+		sheet.setRowValues = (r: number, c: number, values: PCell[], defaultStyle?: PCellStyle) => {
 			for (const [i, value] of values.entries()) {
 				const cell = sheet.getCell(r, c + i)
 				setValueCell({
@@ -330,7 +333,7 @@ export class Xls extends exceljs.Workbook {
 			}
 		}
 
-		sheet.setColumnValues = (r: number, c: number, values: PCell[], defaultStyle?: Omit<PCellDefinition, 'value'>) => {
+		sheet.setColumnValues = (r: number, c: number, values: PCell[], defaultStyle?: PCellStyle) => {
 			for (const [i, value] of values.entries()) {
 				const cell = sheet.getCell(r + i, c)
 				setValueCell({
