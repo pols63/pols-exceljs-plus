@@ -391,8 +391,12 @@ export class Xls extends exceljs.Workbook {
 							response[property] = value.result.error
 						} else {
 							if (value.result instanceof Date) {
-								const date = new Date(value.result.toISOString().replace('T', ' ').replace('Z', ''))
-								response[property] = isNaN(date.getTime()) ? null : date
+								if (isNaN(value.result.getTime())) {
+									response[property] = null
+								} else {
+									const date = new Date(value.result.toISOString().replace('T', ' ').replace('Z', ''))
+									response[property] = isNaN(date.getTime()) ? null : date
+								}
 							} else {
 								response[property] = value.result
 							}
