@@ -380,8 +380,12 @@ export class Xls extends exceljs.Workbook {
 				/* Se ientifica el tipo del valor */
 				if (value && typeof value == 'object') {
 					if (value instanceof Date) {
-						const date = new Date(value.toISOString().replace('T', ' ').replace('Z', ''))
-						response[property] = isNaN(date.getTime()) ? null : date
+						if (isNaN(value.getTime())) {
+							response[property] = null
+						} else {
+							const date = new Date(value.toISOString().replace('T', ' ').replace('Z', ''))
+							response[property] = isNaN(date.getTime()) ? null : date
+						}
 					} else if ('result' in value) { /* Cuando la celda es una fórmula */
 						if (value.result && typeof value.result == 'object' && 'error' in value.result) {
 							response[property] = value.result.error
