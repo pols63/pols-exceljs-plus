@@ -29,7 +29,7 @@
 	},
 	"dependencies": {
 		"exceljs": "^4.4.0",
-		"pols-date": "^1.6.0",
-		"pols-utils": "^5.9.0"
+		"pols-date": "^1.7.3",
+		"pols-utils": "^5.9.1"
 	}
 }
