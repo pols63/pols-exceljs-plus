@@ -42,7 +42,7 @@ export type PCell = PValue | PCellDefinition
 export type PPage = {
 	name: string
 	title?: string
-	columns: PColumn[][]
+	headers: PColumn[][]
 	rows: PCell[][]
 	defaultNumberFormat?: string
 }
@@ -405,7 +405,7 @@ export class PXls extends exceljs.Workbook {
 			}
 
 			const skips: PSkips = {}
-			for (const rowColumn of page.columns) {
+			for (const rowColumn of page.headers) {
 				let c = 1
 				for (const column of rowColumn) {
 					c = cellColumnPaint(sheet, r, c, column, skips)
