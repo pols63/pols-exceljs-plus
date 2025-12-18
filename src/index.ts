@@ -153,7 +153,7 @@ const cellColumnPaint = (sheet: exceljs.Worksheet, r: number, c: number, column:
 	return cFinal + 1
 }
 
-const setBorder = (sheetCell: exceljs.Cell, _type: 'top' | 'bottom' | 'left' | 'right', toSet: Style['border'], reference?: PCellStyle['border']) => {
+const setBorder = (_type: 'top' | 'bottom' | 'left' | 'right', toSet: Style['border'], reference?: PCellStyle['border']) => {
 	if (!reference?.[_type]) return
 	toSet[_type] = {}
 	if (reference[_type].style) toSet[_type].style = reference[_type].style
@@ -188,10 +188,10 @@ const setValueCell = ({ sheetCell, value }: {
 		}
 		if (value.border) {
 			const toSet: Style['border'] = {}
-			setBorder(sheetCell, 'top', toSet, value.border)
-			setBorder(sheetCell, 'bottom', toSet, value.border)
-			setBorder(sheetCell, 'left', toSet, value.border)
-			setBorder(sheetCell, 'right', toSet, value.border)
+			setBorder('top', toSet, value.border)
+			setBorder('bottom', toSet, value.border)
+			setBorder('left', toSet, value.border)
+			setBorder('right', toSet, value.border)
 			sheetCell.border = toSet
 		}
 		if (value.color) sheetCell.font = {
@@ -214,57 +214,6 @@ const setValueCell = ({ sheetCell, value }: {
 	}
 }
 
-export const report = async (...pages: PPage[]) => {
-	const workbook = new exceljs.Workbook
-	for (const page of pages) {
-		const sheet = workbook.addWorksheet(page.name)
-		let r = 1
-		if (page.title) {
-			sheet.getCell(1, 1).value = page.title
-			sheet.getCell(1, 1).font = {
-				name: "Calibri",
-				bold: true,
-				size: 14,
-			}
-			r = 2
-		}
-
-		const skips: PSkips = {}
-		for (const rowColumn of page.columns) {
-			let c = 1
-			for (const column of rowColumn) {
-				c = cellColumnPaint(sheet, r, c, column, skips)
-			}
-			r++
-		}
-
-		for (const row of page.rows) {
-			let c = 1
-			const rowInSheet = sheet.getRow(r)
-			rowInSheet.font = {
-				name: "Calibri",
-				size: 8,
-			}
-			rowInSheet.alignment = {
-				vertical: "top",
-				wrapText: true,
-			}
-			for (const cell of row) {
-				const sheetCell = sheet.getCell(r, c++)
-				setValueCell({
-					sheetCell,
-					value: cell
-				})
-			}
-			r++
-		}
-	}
-
-	const passThrough = new stream.PassThrough
-	await workbook.xlsx.write(passThrough)
-	return stream.Readable.from(passThrough)
-}
-
 export type PSchemaResult<T, K extends readonly string[]> = [T] extends [never] ? Record<K[number], string | number | Date | null> : T
 
 export type Worksheet = exceljs.Worksheet & {
@@ -283,7 +232,7 @@ export type WorksheetCell = null | string | number | Date | {
 	hyperlink: string
 }
 
-export class Xls extends exceljs.Workbook {
+export class PXls extends exceljs.Workbook {
 	async readFromReadableStream(readableStream: stream.Readable) {
 		await this.xlsx.read(readableStream)
 	}
@@ -438,5 +387,56 @@ export class Xls extends exceljs.Workbook {
 		}
 
 		return sheet as Worksheet
+	}
+
+	static async createReport(...pages: PPage[]) {
+		const workbook = new exceljs.Workbook
+		for (const page of pages) {
+			const sheet = workbook.addWorksheet(page.name)
+			let r = 1
+			if (page.title) {
+				sheet.getCell(1, 1).value = page.title
+				sheet.getCell(1, 1).font = {
+					name: "Calibri",
+					bold: true,
+					size: 14,
+				}
+				r = 2
+			}
+
+			const skips: PSkips = {}
+			for (const rowColumn of page.columns) {
+				let c = 1
+				for (const column of rowColumn) {
+					c = cellColumnPaint(sheet, r, c, column, skips)
+				}
+				r++
+			}
+
+			for (const row of page.rows) {
+				let c = 1
+				const rowInSheet = sheet.getRow(r)
+				rowInSheet.font = {
+					name: "Calibri",
+					size: 8,
+				}
+				rowInSheet.alignment = {
+					vertical: "top",
+					wrapText: true,
+				}
+				for (const cell of row) {
+					const sheetCell = sheet.getCell(r, c++)
+					setValueCell({
+						sheetCell,
+						value: cell
+					})
+				}
+				r++
+			}
+		}
+
+		const passThrough = new stream.PassThrough
+		await workbook.xlsx.write(passThrough)
+		return stream.Readable.from(passThrough)
 	}
 }
