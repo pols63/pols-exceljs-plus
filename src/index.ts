@@ -4,7 +4,7 @@ import exceljs, { Style } from 'exceljs'
 import { PUtilsString } from 'pols-utils'
 import { PDate } from 'pols-date'
 
-export type PColumn = {
+export type PHeaderCell = {
 	label?: string
 	color?: string
 	backgroundColor?: string
@@ -12,7 +12,7 @@ export type PColumn = {
 	span?: number
 	colSpan?: number
 	rowSpan?: number
-	children?: PColumn[]
+	children?: PHeaderCell[]
 }
 
 export type PValue = string | number | boolean | null | undefined | Date | PDate
@@ -37,20 +37,20 @@ export type PCellDefinition = {
 	value: PValue
 } & PCellStyle
 
-export type PCell = PValue | PCellDefinition
+export type PDataCell = PValue | PCellDefinition
 
 export type PPage = {
 	name: string
 	title?: string
-	headers: PColumn[][]
-	rows: PCell[][]
+	headers: PHeaderCell[][]
+	rows: PDataCell[][]
 	defaultNumberFormat?: string
 }
 
 type PSkips = Record<string, number[]>
 
 /* Pintado de columnas */
-const cellColumnPaint = (sheet: exceljs.Worksheet, r: number, c: number, column: PColumn, skips: PSkips) => {
+const cellColumnPaint = (sheet: exceljs.Worksheet, r: number, c: number, column: PHeaderCell, skips: PSkips) => {
 	skips[r.toString()]?.sort((a, b) => {
 		if (a < b) return -1
 		if (a > b) return 1
@@ -162,7 +162,7 @@ const setBorder = (_type: 'top' | 'bottom' | 'left' | 'right', toSet: Style['bor
 
 const setValueCell = ({ sheetCell, value }: {
 	sheetCell: exceljs.Cell
-	value: PCell
+	value: PDataCell
 }) => {
 
 	if (value == null) {
@@ -217,9 +217,9 @@ const setValueCell = ({ sheetCell, value }: {
 export type PSchemaResult<T, K extends readonly string[]> = [T] extends [never] ? Record<K[number], string | number | Date | null> : T
 
 export type Worksheet = exceljs.Worksheet & {
-	setValues: (r: string | number, c: string | number, values: PCell[][], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
-	setRowValues: (r: string | number, c: string | number, values: PCell[], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
-	setColumnValues: (r: string | number, c: string | number, values: PCell[], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
+	setValues: (r: string | number, c: string | number, values: PDataCell[][], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
+	setRowValues: (r: string | number, c: string | number, values: PDataCell[], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
+	setColumnValues: (r: string | number, c: string | number, values: PDataCell[], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
 	getValuesBySchema: <T = never, K extends readonly string[] = readonly string[]>(r: number, c: number, readMode: 'row' | 'column', schema: K) => PSchemaResult<T, K>
 	getValue: <T = string | number | Date | null>(r: number, c: number) => T
 }
@@ -268,13 +268,13 @@ export class PXls extends exceljs.Workbook {
 		}
 		if (!sheet) throw new Error(`No se encontró el worksheet '${indexOrName}'`)
 
-		sheet.setValues = (r: number, c: number, values: PCell[][], defaultStyle?: PCellStyle) => {
+		sheet.setValues = (r: number, c: number, values: PDataCell[][], defaultStyle?: PCellStyle) => {
 			for (const [i, rows] of values.entries()) {
 				sheet.setRowValues(r + i, c, rows, defaultStyle)
 			}
 		}
 
-		sheet.setRowValues = (r: number, c: number, values: PCell[], defaultStyle?: PCellStyle) => {
+		sheet.setRowValues = (r: number, c: number, values: PDataCell[], defaultStyle?: PCellStyle) => {
 			let col = c
 			for (const [i, value] of values.entries()) {
 				const cell = sheet.getCell(r, col + i)
@@ -296,7 +296,7 @@ export class PXls extends exceljs.Workbook {
 			}
 		}
 
-		sheet.setColumnValues = (r: number, c: number, values: PCell[], defaultStyle?: PCellStyle) => {
+		sheet.setColumnValues = (r: number, c: number, values: PDataCell[], defaultStyle?: PCellStyle) => {
 			for (const [i, value] of values.entries()) {
 				const cell = sheet.getCell(r + i, c)
 				const processedValue = (typeof value == 'object' && value != null && 'value' in value) ? {
