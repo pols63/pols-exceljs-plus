@@ -28,29 +28,25 @@ async function runTests() {
 	assert.ok(res1.birthDate instanceof Date)
 	assert.strictEqual(res1.birthDate.toISOString().substring(0, 10), "2026-06-24")
 
-	// 2. Custom cellIndex & Default value verification
-	const indexAndDefaultSchema = {
+	// 2. Custom cellIndex & Null value verification
+	const indexAndNullSchema = {
 		name: { type: String, cellIndex: 1 },         // Col 2 ("John Doe")
 		extra: { type: String, cellIndex: 5 },        // Col 6 ("extra")
-		missingWithDefault: { type: String, cellIndex: 3, defaultValue: "default_val" }, // Col 4 (null)
 		missingNull: { type: String, cellIndex: 3 }, // Col 4 (null)
 	}
-	const res2 = sheet.getValuesBySchema(indexAndDefaultSchema, 'row', 1, 1)
-	console.log('Result 2 (Index & Default):', res2)
+	const res2 = sheet.getValuesBySchema(indexAndNullSchema, 'row', 1, 1)
+	console.log('Result 2 (Index & Null):', res2)
 	assert.strictEqual(res2.name, "John Doe")
 	assert.strictEqual(res2.extra, "extra")
-	assert.strictEqual(res2.missingWithDefault, "default_val")
 	assert.strictEqual(res2.missingNull, null)
 
-	// 3. Required validation verification
-	const requiredSchema = {
-		id: { type: Number, cellIndex: 0, required: true },
-		missing: { type: String, cellIndex: 3, required: true }, // Should throw
+	// 3. Null representation check (if no content, returns null)
+	const nullCheckSchema = {
+		emptyCell: { type: String, cellIndex: 3 }, // Col 4 (null)
 	}
-	assert.throws(() => {
-		sheet.getValuesBySchema(requiredSchema, 'row', 1, 1)
-	}, /El campo 'missing' es requerido/)
-	console.log('Result 3 (Required check passed): throws correctly')
+	const res3 = sheet.getValuesBySchema(nullCheckSchema, 'row', 1, 1)
+	console.log('Result 3 (Null check):', res3)
+	assert.strictEqual(res3.emptyCell, null)
 
 	// 4. Custom parser verification
 	const customParserSchema = {

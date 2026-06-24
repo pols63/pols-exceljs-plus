@@ -53,10 +53,8 @@ Cada propiedad del esquema puede ser:
 1. **Un Constructor / Tipo abreviado:** `String`, `Number`, `Boolean`, `Date`, `'string'`, `'number'`, `'boolean'`, `'date'`, o `'any'`.
 2. **Un Objeto de Configuración Completo:**
    * `type`: Tipo de dato o constructor.
-   * `cellIndex` (opcional): Desplazamiento relativo explícito desde la celda inicial (permite saltarse celdas o leer en desorden).
-   * `required` (opcional): Booleano. Si es `true` y el valor es nulo/indefinido, lanzará un error indicando la posición exacta de la celda.
-   * `defaultValue` (opcional): Valor retornado si la celda está vacía.
-   * `parse` (opcional): Función callback para transformar/limpiar el valor obtenido: `(value: any) => any`.
+    * `cellIndex` (opcional): Desplazamiento relativo explícito desde la celda inicial (permite saltarse celdas o leer en desorden).
+    * `parse` (opcional): Función callback para transformar/limpiar el valor obtenido: `(value: any) => any`.
 
 #### Ejemplo de Lectura:
 
@@ -72,7 +70,7 @@ const esquemaCliente = {
   id: Number,                                                   // Convierte a número secuencialmente (Col A)
   nombre: String,                                               // Convierte a string (Col B)
   fechaRegistro: 'date',                                        // Convierte a objeto Date (Col C)
-  estado: { type: String, cellIndex: 3, defaultValue: 'Activo' }, // Lee Col D (vacía) y aplica defaultValue
+  estado: { type: String, cellIndex: 3 },                       // Lee Col D (vacía) y devuelve null
   observaciones: { 
     parse: (val) => typeof val === 'string' ? val.trim() : val,
     cellIndex: 4                                                // Lee Col E de forma explícita
@@ -87,7 +85,7 @@ Output:
   id: 456,
   nombre: "María Pérez",
   fechaRegistro: Date("2026-06-24..."),
-  estado: "Activo",
+  estado: null,
   observaciones: "texto con espacios"
 }
 */

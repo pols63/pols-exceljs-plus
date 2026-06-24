@@ -219,8 +219,6 @@ export type PSchemaType = 'string' | 'number' | 'date' | 'boolean' | 'any' | Str
 export type PSchemaItem = PSchemaType | {
 	type?: PSchemaType
 	cellIndex?: number
-	required?: boolean
-	defaultValue?: any
 	parse?: (value: any) => any
 }
 
@@ -232,13 +230,12 @@ export type InferSchemaType<T> =
 	T extends 'date' | DateConstructor ? Date :
 	T extends 'boolean' | BooleanConstructor ? boolean :
 	T extends 'any' ? any :
-	T extends { type: infer U }
-	? (T extends { required: true } ? InferSchemaType<U> : InferSchemaType<U> | null)
-	: any
+	T extends { type: infer U } ? InferSchemaType<U> :
+	any;
 
 export type PSchemaResult<T, S extends PSchema> = [T] extends [never]
-	? { [K in keyof S]: S[K] extends { required: true } ? InferSchemaType<S[K]> : InferSchemaType<S[K]> | null }
-	: T
+	? { [K in keyof S]: InferSchemaType<S[K]> | null }
+	: T;
 
 export type Worksheet = exceljs.Worksheet & {
 	setValues: (r: string | number, c: string | number, values: PDataCell[][], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
@@ -412,14 +409,9 @@ export class PXls extends exceljs.Workbook {
 					val = normalized.parse(val)
 				}
 
-				// Default value
-				if (val == null && 'defaultValue' in normalized) {
-					val = normalized.defaultValue
-				}
-
-				// Required validation
-				if (val == null && normalized.required) {
-					throw new Error(`El campo '${key}' es requerido y no se encontró un valor válido en la celda [${row}, ${col}].`)
+				// If it has no content, return null
+				if (val === undefined || val === null || val === '') {
+					val = null
 				}
 
 				response[key] = val
