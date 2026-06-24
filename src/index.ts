@@ -214,13 +214,37 @@ const setValueCell = ({ sheetCell, value }: {
 	}
 }
 
-export type PSchemaResult<T, K extends readonly string[]> = [T] extends [never] ? Record<K[number], string | number | Date | null> : T
+export type PSchemaType = 'string' | 'number' | 'date' | 'boolean' | 'any' | StringConstructor | NumberConstructor | DateConstructor | BooleanConstructor | (string & {})
+
+export type PSchemaItem = PSchemaType | {
+	type?: PSchemaType
+	cellIndex?: number
+	required?: boolean
+	defaultValue?: any
+	parse?: (value: any) => any
+}
+
+export type PSchema = Record<string, PSchemaItem>
+
+export type InferSchemaType<T> =
+	T extends 'string' | StringConstructor ? string :
+	T extends 'number' | NumberConstructor ? number :
+	T extends 'date' | DateConstructor ? Date :
+	T extends 'boolean' | BooleanConstructor ? boolean :
+	T extends 'any' ? any :
+	T extends { type: infer U }
+	? (T extends { required: true } ? InferSchemaType<U> : InferSchemaType<U> | null)
+	: any
+
+export type PSchemaResult<T, S extends PSchema> = [T] extends [never]
+	? { [K in keyof S]: S[K] extends { required: true } ? InferSchemaType<S[K]> : InferSchemaType<S[K]> | null }
+	: T
 
 export type Worksheet = exceljs.Worksheet & {
 	setValues: (r: string | number, c: string | number, values: PDataCell[][], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
 	setRowValues: (r: string | number, c: string | number, values: PDataCell[], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
 	setColumnValues: (r: string | number, c: string | number, values: PDataCell[], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
-	getValuesBySchema: <T = never, K extends readonly string[] = readonly string[]>(r: number, c: number, readMode: 'row' | 'column', schema: K) => PSchemaResult<T, K>
+	getValuesBySchema: <T = never, S extends PSchema = PSchema>(r: number, c: number, readMode: 'row' | 'column', schema: S) => PSchemaResult<T, S>
 	getValue: <T = string | number | Date | null>(r: number, c: number) => T
 }
 
@@ -230,6 +254,43 @@ export type WorksheetCell = null | string | number | Date | {
 } | {
 	text: string,
 	hyperlink: string
+}
+
+const getParsedCellValue = (sheet: Worksheet, row: number, col: number) => {
+	let value: WorksheetCell = sheet.getCell(row, col).value as WorksheetCell
+	if (value && typeof value == 'object') {
+		if (value instanceof Date) {
+			if (isNaN(value.getTime())) {
+				return null
+			} else {
+				const date = new Date(value.toISOString().replace('T', ' ').replace('Z', ''))
+				return isNaN(date.getTime()) ? null : date
+			}
+		} else if ('result' in value) { /* Cuando la celda es una fórmula */
+			if (value.result && typeof value.result == 'object' && 'error' in value.result) {
+				return value.result.error
+			} else {
+				if (value.result instanceof Date) {
+					if (isNaN(value.result.getTime())) {
+						return null
+					} else {
+						const date = new Date(value.result.toISOString().replace('T', ' ').replace('Z', ''))
+						return isNaN(date.getTime()) ? null : date
+					}
+				} else {
+					return value.result
+				}
+			}
+		} else if ('text' in value) { /* Cuando la celda es un hipervínculo */
+			return value.text
+		} else if ('richText' in value) { /* Cuando la celda es un hipervínculo */
+			return (value as any).richText.map(v => v.text).join(' ')
+		}
+	}
+	if (value != null && typeof value == 'string') {
+		value = value.trim().replace(/\s/g, ' ')
+	}
+	return value
 }
 
 export class PXls extends exceljs.Workbook {
@@ -316,51 +377,58 @@ export class PXls extends exceljs.Workbook {
 			}
 		}
 
-		sheet.getValuesBySchema = <T = never, K extends readonly string[] = readonly string[]>(r: number, c: number, readMode: 'row' | 'column', schema: K) => {
-			const response: Partial<PSchemaResult<T, K>> = {}
-			for (const [i, property] of schema.entries()) {
-				let value: WorksheetCell
-				/* Se obtiene el valor de acuerdo al modo de lectura */
-				if (readMode == 'row') {
-					value = sheet.getCell(r, c + i).value as WorksheetCell
-				} else {
-					value = sheet.getCell(r + i, c).value as WorksheetCell
-				}
-				/* Se ientifica el tipo del valor */
-				if (value && typeof value == 'object') {
-					if (value instanceof Date) {
-						if (isNaN(value.getTime())) {
-							response[property] = null
-						} else {
-							const date = new Date(value.toISOString().replace('T', ' ').replace('Z', ''))
-							response[property] = isNaN(date.getTime()) ? null : date
+		sheet.getValuesBySchema = <T = never, S extends PSchema = PSchema>(r: number, c: number, readMode: 'row' | 'column', schema: S) => {
+			const response: any = {}
+			let autoIndex = 0
+			for (const [key, item] of Object.entries(schema)) {
+				const normalized = typeof item === 'string' ? { type: item } :
+					typeof item === 'function' ? (item === Number || item === String || item === Boolean || item === Date ? { type: item } : { parse: item }) :
+						(item && typeof item === 'object' ? item as any : {})
+
+				const cellIdx = typeof normalized.cellIndex === 'number' ? normalized.cellIndex : autoIndex
+				autoIndex++
+
+				const row = readMode == 'row' ? r : r + cellIdx
+				const col = readMode == 'row' ? c + cellIdx : c
+
+				let val = getParsedCellValue(sheet, row, col)
+
+				// Conversión de tipos
+				if (val != null) {
+					const type = normalized.type
+					if (type === 'string' || type === String) {
+						val = String(val)
+					} else if (type === 'number' || type === Number) {
+						const num = Number(val)
+						val = isNaN(num) ? null : num
+					} else if (type === 'boolean' || type === Boolean) {
+						val = Boolean(val)
+					} else if (type === 'date' || type === Date) {
+						if (!(val instanceof Date)) {
+							const d = new Date(val)
+							val = isNaN(d.getTime()) ? null : d
 						}
-					} else if ('result' in value) { /* Cuando la celda es una fórmula */
-						if (value.result && typeof value.result == 'object' && 'error' in value.result) {
-							response[property] = value.result.error
-						} else {
-							if (value.result instanceof Date) {
-								if (isNaN(value.result.getTime())) {
-									response[property] = null
-								} else {
-									const date = new Date(value.result.toISOString().replace('T', ' ').replace('Z', ''))
-									response[property] = isNaN(date.getTime()) ? null : date
-								}
-							} else {
-								response[property] = value.result
-							}
-						}
-					} else if ('text' in value) { /* Cuando la celda es un hipervínculo */
-						response[property] = value.text
-					} else if ('richText' in value) { /* Cuando la celda es un hipervínculo */
-						response[property] = (value as any).richText.map(v => v.text).join(' ')
 					}
-				} else if (value != null) {
-					response[property] = value
 				}
-				if (typeof response[property] == 'string') response[property] = response[property].trim().replace(/\s/g, ' ')
+
+				// Custom parse
+				if (normalized.parse && typeof normalized.parse === 'function') {
+					val = normalized.parse(val)
+				}
+
+				// Default value
+				if (val == null && 'defaultValue' in normalized) {
+					val = normalized.defaultValue
+				}
+
+				// Required validation
+				if (val == null && normalized.required) {
+					throw new Error(`El campo '${key}' es requerido y no se encontró un valor válido en la celda [${row}, ${col}].`)
+				}
+
+				response[key] = val
 			}
-			return response as PSchemaResult<T, K>
+			return response as PSchemaResult<T, S>
 		}
 
 		sheet.getValue = <T = string | number | Date | null>(r: number, c: number): T => {
