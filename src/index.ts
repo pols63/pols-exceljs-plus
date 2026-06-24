@@ -237,11 +237,24 @@ export type PSchemaResult<T, S extends PSchema> = [T] extends [never]
 	? { [K in keyof S]: InferSchemaType<S[K]> | null }
 	: T;
 
+export type PTableSchemaItem = {
+	type?: PSchemaType
+	headerName: string | RegExp
+	parse?: (value: any, prevValue?: any) => any
+}
+
+export type PTableSchema = Record<string, PTableSchemaItem>
+
+export type PTableSchemaResult<T, S extends PTableSchema> = [T] extends [never]
+	? { [K in keyof S]: InferSchemaType<S[K]> | null }
+	: T;
+
 export type Worksheet = exceljs.Worksheet & {
 	setValues: (r: string | number, c: string | number, values: PDataCell[][], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
 	setRowValues: (r: string | number, c: string | number, values: PDataCell[], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
 	setColumnValues: (r: string | number, c: string | number, values: PDataCell[], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
 	getValuesBySchema: <T = never, S extends PSchema = PSchema>(schema: S, readMode: 'row' | 'column', r: number, c: number) => PSchemaResult<T, S>
+	getTableValues: <T = never, S extends PTableSchema = PTableSchema>(schema: S, r: number, c: number) => PTableSchemaResult<T, S>[]
 	getValue: <T = string | number | Date | null>(r: number, c: number) => T
 }
 
@@ -288,6 +301,28 @@ const getParsedCellValue = (sheet: Worksheet, row: number, col: number) => {
 		value = value.trim().replace(/\s/g, ' ')
 	}
 	return value
+}
+
+const convertValueType = (val: any, type: any) => {
+	if (val != null) {
+		if (type === 'string' || type === String) {
+			val = String(val)
+		} else if (type === 'number' || type === Number) {
+			const num = Number(val)
+			val = isNaN(num) ? null : num
+		} else if (type === 'boolean' || type === Boolean) {
+			val = Boolean(val)
+		} else if (type === 'date' || type === Date) {
+			if (!(val instanceof Date)) {
+				const d = new Date(val)
+				val = isNaN(d.getTime()) ? null : d
+			}
+		}
+	}
+	if (val === undefined || val === null || val === '') {
+		val = null
+	}
+	return val
 }
 
 export class PXls extends exceljs.Workbook {
@@ -385,31 +420,13 @@ export class PXls extends exceljs.Workbook {
 				const col = readMode == 'row' ? c + cellIdx : c
 
 				let val = getParsedCellValue(ws, row, col)
-
-				// Conversión de tipos
-				if (val != null) {
-					const type = normalized.type
-					if (type === 'string' || type === String) {
-						val = String(val)
-					} else if (type === 'number' || type === Number) {
-						const num = Number(val)
-						val = isNaN(num) ? null : num
-					} else if (type === 'boolean' || type === Boolean) {
-						val = Boolean(val)
-					} else if (type === 'date' || type === Date) {
-						if (!(val instanceof Date)) {
-							const d = new Date(val)
-							val = isNaN(d.getTime()) ? null : d
-						}
-					}
-				}
+				val = convertValueType(val, normalized.type)
 
 				// Custom parse
 				if (normalized.parse && typeof normalized.parse === 'function') {
 					val = normalized.parse(val)
 				}
 
-				// If it has no content, return null
 				if (val === undefined || val === null || val === '') {
 					val = null
 				}
@@ -417,6 +434,99 @@ export class PXls extends exceljs.Workbook {
 				response[key] = val
 			}
 			return response as PSchemaResult<T, S>
+		}
+
+		ws.getTableValues = <T = never, S extends PTableSchema = PTableSchema>(schema: S, r: number, c: number): PTableSchemaResult<T, S>[] => {
+			const headers: { colIndex: number; headerText: string }[] = []
+			let col = c
+			while (true) {
+				const val = getParsedCellValue(ws, r, col)
+				if (val === null || val === undefined || val === '') {
+					break
+				}
+				headers.push({ colIndex: col, headerText: String(val) })
+				col++
+			}
+
+			const keyToCols = new Map<string, number[]>()
+			const allMatchedCols = new Set<number>()
+			const matchesHeader = (headerText: string, pattern: string | RegExp): boolean => {
+				if (pattern instanceof RegExp) {
+					return pattern.test(headerText)
+				}
+				return headerText === pattern
+			}
+
+			for (const [key, item] of Object.entries(schema)) {
+				const matchedCols: number[] = []
+				const pattern = item?.headerName
+				if (pattern != null) {
+					for (const h of headers) {
+						if (matchesHeader(h.headerText, pattern)) {
+							matchedCols.push(h.colIndex)
+							allMatchedCols.add(h.colIndex)
+						}
+					}
+				}
+				keyToCols.set(key, matchedCols)
+			}
+
+			const results: any[] = []
+			let rowIdx = r + 1
+
+			while (true) {
+				if (rowIdx > ws.rowCount) {
+					break
+				}
+
+				let rowIsEmpty = true
+				for (const colIdx of allMatchedCols) {
+					const val = getParsedCellValue(ws, rowIdx, colIdx)
+					if (val !== null && val !== undefined && val !== '') {
+						rowIsEmpty = false
+						break
+					}
+				}
+
+				if (rowIsEmpty) {
+					break
+				}
+
+				const rowObj: any = {}
+				for (const [key, item] of Object.entries(schema)) {
+					const matchedCols = keyToCols.get(key) || []
+					if (matchedCols.length === 0) {
+						rowObj[key] = null
+						continue
+					}
+
+					let prevVal: any = undefined
+					let hasPrev = false
+
+					for (const colIdx of matchedCols) {
+						let val = getParsedCellValue(ws, rowIdx, colIdx)
+						val = convertValueType(val, item.type)
+
+						if (item.parse && typeof item.parse === 'function') {
+							val = item.parse(val, hasPrev ? prevVal : undefined)
+						}
+
+						if (val === undefined || val === null || val === '') {
+							val = null
+						}
+
+						prevVal = val
+						hasPrev = true
+					}
+
+					rowObj[key] = prevVal
+				}
+
+				results.push(rowObj)
+				rowIdx++
+			}
+
+			return results as PTableSchemaResult<T, S>[]
 		}
 
 		ws.getValue = <T = string | number | Date | null>(r: number, c: number): T => {

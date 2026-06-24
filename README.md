@@ -6,6 +6,7 @@
 
 * **PXls Workbook**: Extiende el `Workbook` nativo de exceljs inyectando métodos de ayuda en todas las hojas (`Worksheet`).
 * **Lectura por Esquema Declarativo (`getValuesBySchema`)**: Extrae y valida filas o columnas a partir de un esquema en forma de objeto, con conversión automática de tipos, validación de obligatoriedad, valores por defecto y parseadores personalizados.
+* **Lectura de Tablas Dinámicas (`getTableValues`)**: Extrae una tabla completa a partir de una fila de cabeceras, asociando dinámicamente columnas por nombre (soporta `RegExp`), acumulando múltiples coincidencias con `parse` y detectando el fin de la tabla automáticamente.
 * **Escritura simplificada**: Métodos `setValues`, `setRowValues` y `setColumnValues` para escribir arreglos bidimensionales y unidimensionales aplicando estilos y fusiones de celdas fácilmente.
 * **Lectura rápida de valores (`getValue`)**: Recuperación de valores de celdas con formateo de fechas, resolución de fórmulas y extracción de hipervínculos automáticos.
 
@@ -88,6 +89,62 @@ Output:
   estado: null,
   observaciones: "texto con espacios"
 }
+*/
+```
+
+
+---
+
+### Lectura de Tablas con `getTableValues`
+
+Este método permite leer una tabla completa a partir de una fila de cabeceras. Busca dinámicamente las columnas basándose en sus nombres de cabecera definidos en el esquema (soporta coincidencia por texto exacto o expresión regular `RegExp`).
+
+#### Firma del método:
+```typescript
+sheet.getTableValues(schema, row, column)
+```
+
+* **`schema`**: Objeto que define las propiedades y cómo encontrarlas/formatearlas. Cada propiedad debe ser un objeto con los siguientes atributos:
+  * `headerName`: Cadena de texto (`string`) o expresión regular (`RegExp`) para identificar la cabecera de la columna correspondiente.
+  * `type` (opcional): Constructor o tipo de conversión (`String`, `Number`, `Boolean`, `Date`, `'string'`, `'number'`, `'boolean'`, `'date'`, o `'any'`).
+  * `parse` (opcional): Función callback para transformar el valor: `(value: any, prevValue?: any) => any`.
+* **`row`**: Fila donde se encuentra la cabecera (1-indexed).
+* **`column`**: Columna inicial desde donde se empezará a buscar las cabeceras de forma horizontal (1-indexed).
+
+#### Características particulares:
+1. **Detección de Cabeceras**: El método recorre horizontalmente la fila de partida (`row`) desde la columna inicial (`column`) hasta toparse con una celda vacía (lo cual da por terminado el escaneo de cabeceras).
+2. **Detección de Fin de Tabla**: Lee hacia abajo fila por fila. Para optimizar el rendimiento, sólo lee las celdas cuyas cabeceras coinciden con algún `headerName`. Detiene su lectura cuando se topa con una fila completamente vacía en todas las columnas identificadas.
+3. **Múltiples Cabeceras para una propiedad**:
+   * Si el `headerName` coincide con más de una columna (por ejemplo `/(base imponible)|impuesto/`), por defecto se tomará el valor de la última columna procesada (de izquierda a derecha).
+   * Si se define la función `parse`, esta se invocará secuencialmente recibiendo como primer parámetro el valor de la columna actual y como segundo parámetro el valor acumulado de las columnas coincidentes previas, permitiendo realizar agregaciones (por ejemplo, sumas o concatenaciones).
+
+#### Ejemplo de Lectura de Tabla:
+
+```typescript
+// Supongamos que en la fila 2 de Excel tenemos las cabeceras:
+// B2: "Nombres", C2: "Edades", D2: "Monto 1", E2: "Monto 2"
+// Y las filas siguientes contienen la información
+
+const schema = {
+  nombre: {
+    type: 'string',
+    headerName: /Nombres/
+  },
+  montoTotal: {
+    type: 'number',
+    headerName: /Monto/,
+    parse: (val, prevVal) => (prevVal || 0) + (val || 0) // Suma las columnas que coincidan con "Monto"
+  }
+};
+
+const datos = sheet.getTableValues(schema, 2, 2);
+console.log(datos);
+/*
+Output:
+[
+  { nombre: "Juan", montoTotal: 150 },
+  { nombre: "Maria", montoTotal: 350 }
+]
 */
 ```
 
