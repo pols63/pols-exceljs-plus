@@ -21,7 +21,7 @@ async function runTests() {
 		name: String,
 		birthDate: Date,
 	}
-	const res1 = sheet.getValuesBySchema(1, 1, 'row', basicSchema)
+	const res1 = sheet.getValuesBySchema(basicSchema, 'row', 1, 1)
 	console.log('Result 1 (Basic):', res1)
 	assert.strictEqual(res1.id, 123)
 	assert.strictEqual(res1.name, "John Doe")
@@ -35,7 +35,7 @@ async function runTests() {
 		missingWithDefault: { type: String, cellIndex: 3, defaultValue: "default_val" }, // Col 4 (null)
 		missingNull: { type: String, cellIndex: 3 }, // Col 4 (null)
 	}
-	const res2 = sheet.getValuesBySchema(1, 1, 'row', indexAndDefaultSchema)
+	const res2 = sheet.getValuesBySchema(indexAndDefaultSchema, 'row', 1, 1)
 	console.log('Result 2 (Index & Default):', res2)
 	assert.strictEqual(res2.name, "John Doe")
 	assert.strictEqual(res2.extra, "extra")
@@ -48,7 +48,7 @@ async function runTests() {
 		missing: { type: String, cellIndex: 3, required: true }, // Should throw
 	}
 	assert.throws(() => {
-		sheet.getValuesBySchema(1, 1, 'row', requiredSchema)
+		sheet.getValuesBySchema(requiredSchema, 'row', 1, 1)
 	}, /El campo 'missing' es requerido/)
 	console.log('Result 3 (Required check passed): throws correctly')
 
@@ -57,7 +57,7 @@ async function runTests() {
 		name: { parse: (val: any) => typeof val === 'string' ? val.toUpperCase() : val, cellIndex: 1 },
 		trimmed: { type: String, cellIndex: 4 }, // A5 has leading/trailing spaces
 	}
-	const res4 = sheet.getValuesBySchema(1, 1, 'row', customParserSchema)
+	const res4 = sheet.getValuesBySchema(customParserSchema, 'row', 1, 1)
 	console.log('Result 4 (Custom Parser & Trimming):', res4)
 	assert.strictEqual(res4.name, "JOHN DOE")
 	assert.strictEqual(res4.trimmed, "Custom text") // check replacement/trimming
@@ -68,11 +68,27 @@ async function runTests() {
 		name: 'string',
 		birthDate: 'date',
 	}
-	const res5 = sheet.getValuesBySchema(1, 1, 'row', shorthandStringTypes)
+	const res5 = sheet.getValuesBySchema(shorthandStringTypes, 'row', 1, 1)
 	console.log('Result 5 (Shorthand string types):', res5)
 	assert.strictEqual(res5.id, 123)
 	assert.strictEqual(res5.name, "John Doe")
 	assert.ok(res5.birthDate instanceof Date)
+
+	// 6. Verification of consistent decoration on other worksheet access paths
+	// Test worksheets getter
+	const sheetsFromGetter = workbook.worksheets
+	assert.ok(sheetsFromGetter.length > 0)
+	assert.ok(typeof sheetsFromGetter[0].getValuesBySchema === 'function')
+	console.log('Worksheets getter decoration check passed!')
+
+	// Test eachSheet iterator
+	let iteratorCalled = false
+	workbook.eachSheet((ws) => {
+		assert.ok(typeof ws.getValuesBySchema === 'function')
+		iteratorCalled = true
+	})
+	assert.ok(iteratorCalled)
+	console.log('eachSheet iterator decoration check passed!')
 
 	console.log('All tests passed successfully!')
 }

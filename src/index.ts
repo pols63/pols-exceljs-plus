@@ -244,7 +244,7 @@ export type Worksheet = exceljs.Worksheet & {
 	setValues: (r: string | number, c: string | number, values: PDataCell[][], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
 	setRowValues: (r: string | number, c: string | number, values: PDataCell[], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
 	setColumnValues: (r: string | number, c: string | number, values: PDataCell[], defaultStyle?: Omit<PCellDefinition, 'value'>) => void
-	getValuesBySchema: <T = never, S extends PSchema = PSchema>(r: number, c: number, readMode: 'row' | 'column', schema: S) => PSchemaResult<T, S>
+	getValuesBySchema: <T = never, S extends PSchema = PSchema>(schema: S, readMode: 'row' | 'column', r: number, c: number) => PSchemaResult<T, S>
 	getValue: <T = string | number | Date | null>(r: number, c: number) => T
 }
 
@@ -320,25 +320,21 @@ export class PXls extends exceljs.Workbook {
 		return readableStream
 	}
 
-	getWorksheet(indexOrName: string | number): Worksheet {
-		let sheet: Worksheet
-		try {
-			sheet = (typeof indexOrName == 'string' ? super.getWorksheet(indexOrName) : this.worksheets[indexOrName]) as Worksheet
-		} catch {
-			return
-		}
-		if (!sheet) throw new Error(`No se encontró el worksheet '${indexOrName}'`)
+	private decorateWorksheet(sheet: exceljs.Worksheet): Worksheet {
+		if (!sheet) return sheet as any
+		const ws = sheet as Worksheet
+		if (ws.getValuesBySchema) return ws
 
-		sheet.setValues = (r: number, c: number, values: PDataCell[][], defaultStyle?: PCellStyle) => {
+		ws.setValues = (r: number, c: number, values: PDataCell[][], defaultStyle?: PCellStyle) => {
 			for (const [i, rows] of values.entries()) {
-				sheet.setRowValues(r + i, c, rows, defaultStyle)
+				ws.setRowValues(r + i, c, rows, defaultStyle)
 			}
 		}
 
-		sheet.setRowValues = (r: number, c: number, values: PDataCell[], defaultStyle?: PCellStyle) => {
+		ws.setRowValues = (r: number, c: number, values: PDataCell[], defaultStyle?: PCellStyle) => {
 			let col = c
 			for (const [i, value] of values.entries()) {
-				const cell = sheet.getCell(r, col + i)
+				const cell = ws.getCell(r, col + i)
 				const processedValue = (typeof value == 'object' && value != null && 'value' in value) ? {
 					...(defaultStyle ?? {}),
 					...value
@@ -347,7 +343,7 @@ export class PXls extends exceljs.Workbook {
 					...(defaultStyle ?? {})
 				}
 				if ((processedValue.span ?? 0) > 1) {
-					sheet.mergeCells(r, col + i, r, col + processedValue.span - 1)
+					ws.mergeCells(r, col + i, r, col + processedValue.span - 1)
 					col += processedValue.span - 1
 				}
 				setValueCell({
@@ -357,9 +353,9 @@ export class PXls extends exceljs.Workbook {
 			}
 		}
 
-		sheet.setColumnValues = (r: number, c: number, values: PDataCell[], defaultStyle?: PCellStyle) => {
+		ws.setColumnValues = (r: number, c: number, values: PDataCell[], defaultStyle?: PCellStyle) => {
 			for (const [i, value] of values.entries()) {
-				const cell = sheet.getCell(r + i, c)
+				const cell = ws.getCell(r + i, c)
 				const processedValue = (typeof value == 'object' && value != null && 'value' in value) ? {
 					...(defaultStyle ?? {}),
 					...value
@@ -368,7 +364,7 @@ export class PXls extends exceljs.Workbook {
 					...(defaultStyle ?? {})
 				}
 				if ((processedValue.span ?? 0) > 1) {
-					sheet.mergeCells(r, c, r, c + processedValue.span - 1)
+					ws.mergeCells(r, c, r, c + processedValue.span - 1)
 				}
 				setValueCell({
 					sheetCell: cell,
@@ -377,7 +373,7 @@ export class PXls extends exceljs.Workbook {
 			}
 		}
 
-		sheet.getValuesBySchema = <T = never, S extends PSchema = PSchema>(r: number, c: number, readMode: 'row' | 'column', schema: S) => {
+		ws.getValuesBySchema = <T = never, S extends PSchema = PSchema>(schema: S, readMode: 'row' | 'column', r: number, c: number) => {
 			const response: any = {}
 			let autoIndex = 0
 			for (const [key, item] of Object.entries(schema)) {
@@ -391,7 +387,7 @@ export class PXls extends exceljs.Workbook {
 				const row = readMode == 'row' ? r : r + cellIdx
 				const col = readMode == 'row' ? c + cellIdx : c
 
-				let val = getParsedCellValue(sheet, row, col)
+				let val = getParsedCellValue(ws, row, col)
 
 				// Conversión de tipos
 				if (val != null) {
@@ -431,8 +427,8 @@ export class PXls extends exceljs.Workbook {
 			return response as PSchemaResult<T, S>
 		}
 
-		sheet.getValue = <T = string | number | Date | null>(r: number, c: number): T => {
-			let value = sheet.getCell(r, c).value
+		ws.getValue = <T = string | number | Date | null>(r: number, c: number): T => {
+			let value = ws.getCell(r, c).value
 			if (value && typeof value == 'object') {
 				if (value instanceof Date) {
 					const date = new Date(value.toISOString().replace('T', ' ').replace('Z', ''))
@@ -454,7 +450,35 @@ export class PXls extends exceljs.Workbook {
 			return value as T
 		}
 
-		return sheet as Worksheet
+		return ws
+	}
+
+	getWorksheet(indexOrName: string | number): Worksheet {
+		let sheet: exceljs.Worksheet
+		try {
+			sheet = typeof indexOrName == 'string' ? super.getWorksheet(indexOrName) : this.worksheets[indexOrName]
+		} catch {
+			return
+		}
+		if (!sheet) throw new Error(`No se encontró el worksheet '${indexOrName}'`)
+		return this.decorateWorksheet(sheet)
+	}
+
+	addWorksheet(name: string, options?: exceljs.AddWorksheetOptions): Worksheet {
+		const sheet = super.addWorksheet(name, options)
+		return this.decorateWorksheet(sheet)
+	}
+
+	// @ts-ignore
+	get worksheets(): Worksheet[] {
+		// @ts-ignore
+		return super.worksheets.map(sheet => this.decorateWorksheet(sheet))
+	}
+
+	eachSheet(iteratee: (worksheet: Worksheet, id: number) => void) {
+		this.worksheets.forEach((sheet) => {
+			iteratee(sheet, sheet.id)
+		})
 	}
 
 	static async createReport(...pages: PPage[]) {
